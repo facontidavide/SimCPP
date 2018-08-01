@@ -39,7 +39,9 @@ void destroyTimeoutEvent(Event* ev)
 
 EventPtr Environment::timeout(double time)
 {
-    return EventPtr(new TimeoutEvent( _now + time ), destroyTimeoutEvent);
+    auto ev = new TimeoutEvent( _now + time );
+    _timeout_queue.push( ev );
+    return EventPtr(ev, destroyTimeoutEvent);
 }
 
 void Environment::run(double timeout)
@@ -90,58 +92,14 @@ void Environment::run(double timeout)
     _running = false;
 }
 
-void Environment::wait(EventPtr& event)
+void Environment::wait(const Event& event)
 {
-    if( event->ready() )
-    {
-        return;
-    }
-
-    if(  event->type() == EventType::TIMEOUT )
-    {
-        auto ev = dynamic_cast<TimeoutEvent*>( event.get() );
-        _timeout_queue.push( ev );
-    }
-    coro::yield();
-}
-
-void Environment::wait_any(std::initializer_list<Event *> events)
-{
-    for(auto& event: events)
-    {
-        if( event->ready() ) return;
-    }
-
-    for(auto& event: events)
-    {
-        if(  event->type() == EventType::TIMEOUT )
-        {
-            auto ev = dynamic_cast<TimeoutEvent*>( event );
-            _timeout_queue.push( ev );
-        }
-    }
-
-    bool done = false;
-    while( !done )
+    while( !event.ready() )
     {
         coro::yield();
-        for(auto& event: events)
-        {
-            if( event->ready() ){
-                done = true;
-                break;
-            }
-        }
-    }
-
-    for(auto& event: events)
-    {
-        if( !event->ready() )
-        {
-            event->_cancelled = true;
-        }
     }
 }
+
 
 Resource::Resource(Environment *env, int max_concurrent_request):
     _env(env),

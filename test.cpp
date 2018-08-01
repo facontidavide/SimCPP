@@ -17,8 +17,7 @@ void SerialGenerator(Sim::Environment* env, int number, double interval )
         printf("%7.4f: Here I am %d. Should wake up at %7.4f\n",
                env->now(), i + 1000, env->now() + t );
         fflush(stdout);
-        auto timeout = env->timeout(t);
-        env->wait( timeout );
+        env->wait( env->timeout(t) );
     }
 }
 
@@ -27,8 +26,7 @@ void Customer(Sim::Environment* env, const char* name, double interval )
     printf("%7.4f: Here I am %s\n", env->now(), name );
     fflush(stdout);
     double t = Random::expovariate(1.0 / interval);
-    auto timeout = env->timeout(t);
-    env->wait( timeout );
+    env->wait( env->timeout(t) );
     printf("%7.4f: DONE %s\n", env->now(), name );
     fflush(stdout);
 }

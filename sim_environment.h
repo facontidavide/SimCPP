@@ -33,12 +33,15 @@ public:
         return _coro;
     }
 
-    bool ready() const { return _ready; }
+    virtual bool ready() const { return _ready; }
+
     bool cancelled() const { return _cancelled; }
+
+    void cancel() { _cancelled = true; }
 
     virtual EventType type() const = 0;
 
-private:
+protected:
 
     friend class Resource;
     friend class Environment;
@@ -53,7 +56,7 @@ class TimeoutEvent: public Event
 public:
     TimeoutEvent(double timeout): _deadline(timeout){}
 
-    virtual EventType type() const { return EventType::TIMEOUT; }
+    EventType type() const override { return EventType::TIMEOUT; }
 
     double deadline() const { return _deadline; }
 
@@ -72,7 +75,7 @@ public:
 
     void release();
 
-    virtual EventType type() const { return EventType::RESOURCE_READY; }
+    EventType type() const override { return EventType::RESOURCE_READY; }
 private:
     Resource* _parent;
 };
@@ -80,16 +83,58 @@ private:
 typedef std::unique_ptr<Event, void(*)(Event*)> EventPtr;
 
 
-class OrEvent:  public Event
+class CompositeEvent:  public Event
 {
 public:
+    CompositeEvent( Event& a, Event& b): _a(a), _b(b) {}
+    ~CompositeEvent() = default;
 
-    OrEvent( Event* a, Event* b);
-
-    virtual EventType type() const { return EventType::COMPOSITE; }
+    EventType type() const override { return EventType::COMPOSITE; }
+protected:
+    Event& _a;
+    Event& _b;
 };
 
+class OrEvent: public CompositeEvent
+{
+public:
+    OrEvent( Event& a, Event& b): CompositeEvent(a,b) {}
 
+    bool ready() const override
+    {
+        bool done = _a.ready() | _b.ready();
+        if( done )
+        {
+            if( !_a.ready() ) _a.cancel();
+            if( !_b.ready() ) _b.cancel();
+        }
+        return done;
+    }
+};
+
+class AndEvent: public CompositeEvent
+{
+public:
+    AndEvent( Event& a, Event& b): CompositeEvent(a,b) {}
+
+    bool ready() const override
+    {
+        return _a.ready() && _b.ready();
+    }
+};
+
+inline OrEvent operator |( Event& a, Event& b ) { return OrEvent(a,b); }
+inline OrEvent operator |( EventPtr& a, EventPtr& b ) { return OrEvent( *a.get(), *b.get()); }
+inline OrEvent operator |( EventPtr& a, Event& b ) { return OrEvent(*a.get(),b); }
+inline OrEvent operator |( Event& a, EventPtr& b ) { return OrEvent(a, *b.get()); }
+
+inline AndEvent operator &( Event& a, Event& b ) { return AndEvent(a,b); }
+inline AndEvent operator &( EventPtr& a, EventPtr& b ) { return AndEvent( *a.get(), *b.get()); }
+inline AndEvent operator &( EventPtr& a, Event& b ) { return AndEvent(*a.get(),b); }
+inline AndEvent operator &( Event& a, EventPtr& b ) { return AndEvent(a, *b.get()); }
+
+
+//-----------------------------------------------------------
 class Environment
 {
 public:
@@ -105,9 +150,14 @@ public:
 
     void run(double timeout = std::numeric_limits<double>::infinity() );
 
-    void wait(EventPtr& event);
+    void wait(const Event& event);
 
-    void wait_any(std::initializer_list<Event*> events);
+    void wait(const EventPtr& event)
+    {
+        wait( *(event.get()) );
+    }
+
+   // void wait_any(std::initializer_list<Event*> events);
 
 private:
     double _now;
