@@ -4,6 +4,7 @@
 #include <functional>
 #include <vector>
 #include <queue>
+#include <limits>
 #include "coroutine.h"
 
 namespace Sim{
@@ -17,11 +18,11 @@ class Event
 {
 public:
     Event(){
-     _coro = coroutine::current();
+     _coro = co_self();
     }
     virtual ~Event() = default;
 
-    coroutine::routine_t coro() const{
+    stCoRoutine_t* coro() const{
         return _coro;
     }
 
@@ -30,7 +31,7 @@ public:
     virtual EventType type() const = 0;
 
 private:
-    coroutine::routine_t _coro;
+    stCoRoutine_t* _coro;
 };
 
 class TimeoutEvent: public Event
@@ -80,7 +81,7 @@ private:
     struct Process
     {
         ulong ID;
-        coroutine::routine_t coro;
+        coro::routine_t coro;
     };
 
     std::vector<Process> _process;

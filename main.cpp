@@ -1,98 +1,64 @@
-#include "coroutine.h"
+#include "libco/co_routine.h"
 #include <iostream>
 #include <chrono>
+#include <thread>
 
-coroutine::Channel<int> channel;
-
-string async_func()
+struct Coroutine_t
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-    return "after sleep: --22--";
+    stCoRoutine_t* co;
+    std::function<void()> callable;
+    bool finished;
+};
+
+void MyFunc()
+{
+    std::cout << ">> H" << std::endl;
+    co_yield_ct();
+
+    std::cout << ">> e" << std::endl;
+    co_yield_ct();
+
+    std::cout << ">> y" << std::endl;
+    co_yield_ct();
+
+     std::cout << ">> done" << std::endl;
 }
 
-void routine_func1()
+
+void* co_function_wrapper(void* arg)
 {
-    int i = channel.pop();
-    std::cout << "Rt1 (channel): "<< i << std::endl;
-    i = channel.pop();
-    std::cout << "Rt1 (channel): "<< i << std::endl;
+    Coroutine_t* coro = static_cast<Coroutine_t*>( arg );
+    coro->callable();
+    coro->finished = true;
+    return nullptr;
 }
 
-void routine_func2()
+void co_create(Coroutine_t* coro, std::function<void()> callable )
 {
-    std::cout << "rt2: 20" << std::endl;
-    coroutine::yield();
-
-    std::cout << "rt2: 21" << std::endl;
-    //run function async
-    //yield current routine if result not returned
-    string str = coroutine::await(async_func);
-    std::cout << "Rt2:: " << str << std::endl;
+    coro->callable = std::move(callable);
+    coro->finished = false;
+    co_create( &coro->co, nullptr, co_function_wrapper, coro );
 }
 
-void routine_func3()
+bool co_resume(const Coroutine_t& coro)
 {
-    std::cout << "H" << std::endl;
-    coroutine::yield();
+    if( coro.finished ) return true;
+    co_resume( coro.co );
+    return coro.finished;
+}
 
-    std::cout << "e" << std::endl;
-    coroutine::yield();
-
-    std::cout << "y" << std::endl;
-    coroutine::yield();
-
-     std::cout << "done" << std::endl;
+void co_yield()
+{
+    co_yield_ct();
 }
 
 int main()
 {
+    Coroutine_t rt3;
+    co_create( &rt3, MyFunc );
 
-    //create routine with callback like std::function<void()>
-
-    coroutine::routine_t rt3 = coroutine::create(routine_func3);
-
-    auto ret = coroutine::resume(rt3);
-    std::cout << (ret) << std::endl;
-
-    ret = coroutine::resume(rt3);
-    std::cout << (ret) << std::endl;
-
-    ret = coroutine::resume(rt3);
-    std::cout << (ret) << std::endl;
-
-    ret = coroutine::resume(rt3);
-    std::cout << (ret) << std::endl;
-
-    ret = coroutine::resume(rt3);
-    std::cout << (ret) << std::endl;
-
-    //    coroutine::routine_t rt1 = coroutine::create(routine_func1);
-    //    coroutine::routine_t rt2 = coroutine::create(routine_func2);
-    //    std::cout << "resume rt1" << std::endl;
-    //    auto ret = coroutine::resume(rt1);
-
-    //    std::cout << "resume rt2" << std::endl;
-    //    coroutine::resume(rt2);
-
-    //    std::cout << "push 10 into rt1" << std::endl;
-    //    channel.push(10);
-
-    //    std::cout << "resume rt2" << std::endl;
-    //    coroutine::resume(rt2);
-
-    //    std::cout << "push 10 into rt1" << std::endl;
-    //    channel.push(11);
-
-    //    std::cout << "sleep and resume" << std::endl;
-
-    //    std::this_thread::sleep_for(std::chrono::milliseconds(4000));
-    //    std::cout << "end of main sleep" << std::endl;
-    //    coroutine::resume(rt2);
-
-    //    //destroy routine, free resouce allocated
-    //    //Warning: don't destroy routine by itself
-    //    coroutine::destroy(rt1);
-    //    coroutine::destroy(rt2);
+    while( ! co_resume(rt3) )
+    {}
 
     return 0;
 }

@@ -14,11 +14,12 @@ double Sim::Environment::now() const
 
 void Sim::Environment::addProcess(const Sim::Environment::Callable& function)
 {
-    coroutine::routine_t rt = coroutine::create( function );
+    coro::routine_t rt;
+    coro::create(&rt, function );
 
-    auto ret = coroutine::resume( rt );
+    bool finished = coro::resume( rt );
 
-    if(ret != coroutine::FINISHED)
+    if( !finished )
     {
         _process.push_back( { _last_UID++, rt } );
     }
@@ -36,7 +37,7 @@ void Sim::Environment::run(double timeout)
         TimeoutEvent* tm = _timeout_queue.top();
         _timeout_queue.pop();
         _now = tm->deadline();
-        coroutine::resume( tm->coro() );
+        co_resume( tm->coro() );
         delete tm;
     }
 }
@@ -48,5 +49,5 @@ void Sim::Environment::wait(Sim::Event* event)
         auto ev = dynamic_cast<TimeoutEvent*>( event );
         _timeout_queue.push( ev );
     }
-    coroutine::yield();
+    coro::yield();
 }
