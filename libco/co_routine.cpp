@@ -443,13 +443,13 @@ inline void TakeAllTimeout( stTimeout_t *apTimeout,unsigned long long allNow,stT
 }
 static int CoRoutineFunc( stCoRoutine_t *co,void * )
 {
-	if( co->pfn )
-	{
-		co->pfn( co->arg );
-	}
-	co->cEnd = 1;
+    if( co->pfn )
+    {
+        co->pfn( co->arg );
+    }
+    co->cEnd = 1;
 
-	stCoRoutineEnv_t *env = co->env;
+    stCoRoutineEnv_t *env = co->env;
 
 	co_yield_env( env );
 
@@ -555,12 +555,10 @@ void co_resume( stCoRoutine_t *co )
 	}
 	env->pCallStack[ env->iCallStackSize++ ] = co;
 	co_swap( lpCurrRoutine, co );
-
-
 }
+
 void co_yield_env( stCoRoutineEnv_t *env )
 {
-	
 	stCoRoutine_t *last = env->pCallStack[ env->iCallStackSize - 2 ];
 	stCoRoutine_t *curr = env->pCallStack[ env->iCallStackSize - 1 ];
 

@@ -32,9 +32,14 @@ void Environment::addProcess(const Environment::Callable& function)
     _process.push_back( { _last_UID++, std::move(rt) } );
 }
 
-TimeoutEvent *Environment::timeout(double time)
+void destroyTimeoutEvent(Event* ev)
 {
-    return new TimeoutEvent( _now + time );
+    delete ev;
+}
+
+EventPtr Environment::timeout(double time)
+{
+    return EventPtr(new TimeoutEvent( _now + time ), destroyTimeoutEvent);
 }
 
 void Environment::run(double timeout)
@@ -60,11 +65,14 @@ void Environment::run(double timeout)
         {
             TimeoutEvent* ev = _timeout_queue.top();
             _timeout_queue.pop();
-            _now = ev->deadline();
+            if( !ev->cancelled() )
+            {
+                _now = ev->deadline();
 
-            ev->_ready = true;
-            if( ev->coro()->cEnd == 0){
-                co_resume( ev->coro() );
+                ev->_ready = true;
+                if( ev->coro()->cEnd == 0){
+                    co_resume( ev->coro() );
+                }
             }
         }
 
@@ -82,7 +90,7 @@ void Environment::run(double timeout)
     _running = false;
 }
 
-void Environment::wait(Event* event)
+void Environment::wait(EventPtr& event)
 {
     if( event->ready() )
     {
@@ -91,10 +99,48 @@ void Environment::wait(Event* event)
 
     if(  event->type() == EventType::TIMEOUT )
     {
-        auto ev = dynamic_cast<TimeoutEvent*>( event );
+        auto ev = dynamic_cast<TimeoutEvent*>( event.get() );
         _timeout_queue.push( ev );
     }
     coro::yield();
+}
+
+void Environment::wait_any(std::initializer_list<Event *> events)
+{
+    for(auto& event: events)
+    {
+        if( event->ready() ) return;
+    }
+
+    for(auto& event: events)
+    {
+        if(  event->type() == EventType::TIMEOUT )
+        {
+            auto ev = dynamic_cast<TimeoutEvent*>( event );
+            _timeout_queue.push( ev );
+        }
+    }
+
+    bool done = false;
+    while( !done )
+    {
+        coro::yield();
+        for(auto& event: events)
+        {
+            if( event->ready() ){
+                done = true;
+                break;
+            }
+        }
+    }
+
+    for(auto& event: events)
+    {
+        if( !event->ready() )
+        {
+            event->_cancelled = true;
+        }
+    }
 }
 
 Resource::Resource(Environment *env, int max_concurrent_request):
@@ -107,24 +153,25 @@ Resource::Resource(Environment *env, int max_concurrent_request):
 
 ResourceEvent* Resource::newEvent()
 {
-    if( _memory_pool.empty())
-    {
-        return new ResourceEvent(this);
-    }
-    else{
-        auto event = _memory_pool.back();
-        _memory_pool.pop_back();
-        event->_ready = false;
-        return event;
-    }
+    return new ResourceEvent(this);
+//    if( _memory_pool.empty())
+//    {
+//    }
+//    else{
+//        auto event = _memory_pool.back();
+//        _memory_pool.pop_back();
+//        event->_ready = false;
+//        return event;
+//    }
 }
 
-void destroyResourceEvent(ResourceEvent* ev)
+void destroyResourceEvent(Event* ev)
 {
-     ev->release();
+    dynamic_cast<ResourceEvent*>(ev)->release();
+    ev->Event::~Event();
 }
 
-ResourceEventPtr Resource::request()
+EventPtr Resource::request()
 {
     ResourceEvent* event = newEvent();
 
@@ -137,7 +184,7 @@ ResourceEventPtr Resource::request()
         event = newEvent();
        _pending_events.push_back( event );
     }
-    return ResourceEventPtr( event, destroyResourceEvent );
+    return EventPtr( event, destroyResourceEvent );
 }
 
 void Resource::release(ResourceEvent *event)
@@ -147,13 +194,17 @@ void Resource::release(ResourceEvent *event)
     {
         auto ev = _pending_events.front();
         _pending_events.pop_front();
-        ev->_ready = true;
 
-        if( ev->coro()->cEnd == 0){
-            co_resume( ev->coro() );
+        if( !ev->cancelled() )
+        {
+            ev->_ready = true;
+
+            if( ev->coro()->cEnd == 0){
+                co_resume( ev->coro() );
+            }
         }
     }
-    _memory_pool.push_back(event);
+   // _memory_pool.push_back(event);
 }
 
 void ResourceEvent::release()

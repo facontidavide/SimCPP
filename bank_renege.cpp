@@ -17,30 +17,35 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
     // Customer arrives, is served and leaves.
     double arrive_time = env->now();
     printf("%7.4f %s: Here I am\n", arrive_time, name );
-
+    fflush(stdout);
     auto request = counters->request();
 
     double patience = Random::uniform(MIN_PATIENCE, MAX_PATIENCE);
     auto timeout = env->timeout(patience);
 
     // Wait for the counter or abort at the end of our tether
-    env->wait_any( { request, timeout } );
+    env->wait_any( { request.get(), timeout.get() } );
 
     double wait_time = env->now() - arrive_time;
 
-    if( request.is_ready() && !timeout.is_ready() )
+    if( request->ready() && !timeout->ready() )
     {
         // We got to the counter
-        printf("%7.4f %s: Waited %6.3f", env->now(), name, wait_time);
+        printf("%7.4f %s: Waited %6.3f\n", env->now(), name, wait_time);
+        fflush(stdout);
 
-        double tib = Random::expovariate(1.0 / time_in_bank);
-        env->wait( env->timeout(tib) );
-        printf("%7.4f %s: Finished", env->now(), name);
-    }
-    else{
-        printf("%7.4f %s: RENEGED after %6.3f", env->now(), name, wait_time);
-    }
+        double tib = 20; //Random::expovariate(1.0 / time_in_bank);
+        auto timeout = env->timeout(tib);
+        env->wait( timeout );
 
+        printf("%7.4f %s: Finished\n", env->now(), name);
+        fflush(stdout);
+    }
+    else if( timeout->ready() )
+    {
+        printf("%7.4f %s: RENEGED after %6.3f\n", env->now(), name, wait_time);
+        fflush(stdout);
+    }
 }
 
 
@@ -56,7 +61,8 @@ void CustomerGenerator(Sim::Environment* env, int number, double interval, Sim::
         } );
 
         double t = Random::expovariate(1.0 / interval);
-        env->wait( env->timeout(t) );
+        auto timeout = env->timeout(t);
+        env->wait( timeout );;
     }
 }
 
@@ -69,7 +75,7 @@ int main()
     Sim::Environment env;
 
     // Start processes and run
-    Sim::Resource counters( &env, 1);
+    Sim::Resource counters( &env, 2);
 
     env.addProcess( [&]()
     {

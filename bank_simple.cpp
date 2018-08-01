@@ -30,7 +30,8 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
         fflush(stdout);
 
         double tib = 20; //Random::expovariate(1.0 / time_in_bank);
-        env->wait( env->timeout(tib) );
+        auto timeout = env->timeout(tib);
+        env->wait( timeout );
         printf("%7.4f %s: Finished\n", env->now(), name);
         fflush(stdout);
     }
@@ -54,7 +55,8 @@ void CustomerGenerator(Sim::Environment* env, int number, double interval, Sim::
         } );
 
         double t = Random::expovariate(1.0 / interval);
-        env->wait( env->timeout(t) );
+        auto timeout = env->timeout(t);
+        env->wait( timeout );
     }
 }
 

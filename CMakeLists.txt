@@ -2,21 +2,32 @@ cmake_minimum_required(VERSION 2.8)
 
 project(SimPlusPlus)
 
+
+set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_STATIC_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+
+
 add_subdirectory(libco)
 
 add_definitions(-std=c++11)
 
-add_executable(${PROJECT_NAME}
+add_library(simpp
     coroutine.h
     sim_environment.cpp
     random.h
-    test.cpp
     )
-target_link_libraries(${PROJECT_NAME} pthread colib_static)
+target_link_libraries(simpp pthread colib_static)
+
+add_executable(bank_simple bank_simple.cpp )
+target_link_libraries(bank_simple simpp)
+
+add_executable(bank_renege bank_renege.cpp )
+target_link_libraries(bank_renege simpp)
 
 
-add_executable(coroutine_sample
-    main.cpp
-)
+add_executable(simpp_test test.cpp )
+target_link_libraries(simpp_test simpp)
 
-target_link_libraries(coroutine_sample pthread colib_static)
+
+add_executable(coroutine_sample  main.cpp)
+target_link_libraries(coroutine_sample simpp)

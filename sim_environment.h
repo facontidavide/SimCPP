@@ -13,24 +13,28 @@ namespace Sim{
 
 enum class EventType{
     TIMEOUT,
-    RESOURCE_READY
+    RESOURCE_READY,
+    COMPOSITE
 };
 
 class Event
 {
 public:
-    Event(): _ready(false)
+    Event(): _ready(false), _cancelled(false)
     {
         _coro = co_self();
     }
-    virtual ~Event() = default;
+    virtual ~Event()
+    {
+        _cancelled = true;
+    }
 
     stCoRoutine_t* coro() const{
         return _coro;
     }
 
     bool ready() const { return _ready; }
-
+    bool cancelled() const { return _cancelled; }
 
     virtual EventType type() const = 0;
 
@@ -41,6 +45,7 @@ private:
 
     stCoRoutine_t* _coro;
     bool _ready;
+    bool _cancelled;
 };
 
 class TimeoutEvent: public Event
@@ -72,8 +77,17 @@ private:
     Resource* _parent;
 };
 
-typedef std::unique_ptr<ResourceEvent, void(*)(ResourceEvent*)> ResourceEventPtr;
+typedef std::unique_ptr<Event, void(*)(Event*)> EventPtr;
 
+
+class OrEvent:  public Event
+{
+public:
+
+    OrEvent( Event* a, Event* b);
+
+    virtual EventType type() const { return EventType::COMPOSITE; }
+};
 
 
 class Environment
@@ -87,20 +101,13 @@ public:
 
     void addProcess(const Callable &function);
 
-    TimeoutEvent* timeout(double time);
+    EventPtr timeout(double time);
 
     void run(double timeout = std::numeric_limits<double>::infinity() );
 
-    void wait(Event *event);
+    void wait(EventPtr& event);
 
-    template <typename Ev, typename T>
-    void wait(std::unique_ptr<Ev, T>& event)
-    {
-        static_assert( std::is_base_of<Event,Ev>::value, "Not an Event");
-        wait( event.get() );
-    }
-
-    void wait_any(std::initializer_list<Event> events);
+    void wait_any(std::initializer_list<Event*> events);
 
 private:
     double _now;
@@ -135,7 +142,7 @@ public:
 
     Resource(Environment* env, int max_concurrent_request);
 
-    ResourceEventPtr request();
+    EventPtr request();
 
 private:
 
