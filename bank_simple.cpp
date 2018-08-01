@@ -54,8 +54,7 @@ void CustomerGenerator(Sim::Environment* env, int number, double interval, Sim::
         } );
 
         double t = Random::expovariate(1.0 / interval);
-        auto timeout = env->timeout(t);
-        env->wait( timeout );
+        env->wait(  env->timeout(t) );
     }
 }
 

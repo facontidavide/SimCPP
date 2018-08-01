@@ -17,33 +17,35 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
     // Customer arrives, is served and leaves.
     double arrive_time = env->now();
     printf("%7.4f %s: Here I am\n", arrive_time, name );
-    fflush(stdout);
-    auto request = counters->request();
 
+    auto counter_available = counters->request();
     double patience = Random::uniform(MIN_PATIENCE, MAX_PATIENCE);
     auto timeout = env->timeout(patience);
 
-    // Wait for the counter or abort at the end of our tether
-    env->wait( request | timeout );
+    // Wait until any of these two events takes place
+    env->wait( counter_available | timeout );
 
     double wait_time = env->now() - arrive_time;
 
-    if( request->ready() && !timeout->ready() )
+    if( counter_available->ready() && !timeout->ready() )
     {
         // We got to the counter
         printf("%7.4f %s: Waited %6.3f\n", env->now(), name, wait_time);
-        fflush(stdout);
 
-        double tib = 20; //Random::expovariate(1.0 / time_in_bank);
-        env->wait( env->timeout(tib) );
+        double time_at_counter = Random::expovariate(1.0 / time_in_bank);
+        env->wait( env->timeout(time_at_counter) );
 
-        printf("%7.4f %s: Finished\n", env->now(), name);
-        fflush(stdout);
+        printf("%7.4f %s: Finished. Total time in bank %7.4f\n",
+               env->now(), name,
+               env->now() - arrive_time);
+
+        // This will release explicitly the resource.
+        // Then the object counter_available goes out of scope, this is called automatically
+        counter_available.reset();
     }
     else if( timeout->ready() )
     {
         printf("%7.4f %s: RENEGED after %6.3f\n", env->now(), name, wait_time);
-        fflush(stdout);
     }
 }
 

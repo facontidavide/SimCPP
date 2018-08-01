@@ -82,7 +82,6 @@ private:
 
 typedef std::unique_ptr<Event, void(*)(Event*)> EventPtr;
 
-
 class CompositeEvent:  public Event
 {
 public:
