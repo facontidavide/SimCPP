@@ -6,8 +6,8 @@
 #include "sim_environment.h"
 
 const int RANDOM_SEED = 42;
-const int NEW_CUSTOMERS = 5; // Total number of customers
-const int INTERVAL_CUSTOMERS = 10.0; // Generate new customers roughly every x seconds
+const int NEW_CUSTOMERS = 10; // Total number of customers
+const int INTERVAL_CUSTOMERS = 5.0; // Generate new customers roughly every x seconds
 const int MIN_PATIENCE = 1; // Min. customer patience
 const int MAX_PATIENCE = 3; // Max. customer patience
 
@@ -22,6 +22,11 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
     double patience = Random::uniform(MIN_PATIENCE, MAX_PATIENCE);
     auto timeout = env->timeout(patience);
 
+    if( !counter_available->ready() )
+    {
+        printf("%7.4f %s: --- must wait :( -----\n", arrive_time, name );
+    }
+
     // Wait until any of these two events takes place
     env->wait( counter_available | timeout );
 
@@ -32,7 +37,7 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
         // We got to the counter
         printf("%7.4f %s: Waited %6.3f\n", env->now(), name, wait_time);
 
-        double time_at_counter = Random::expovariate(1.0 / time_in_bank);
+        double time_at_counter =  time_in_bank;
         env->wait( env->timeout(time_at_counter) );
 
         printf("%7.4f %s: Finished. Total time in bank %7.4f\n",
@@ -41,7 +46,7 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
 
         // This will release explicitly the resource.
         // Then the object counter_available goes out of scope, this is called automatically
-        counter_available.reset();
+//        counter_available.reset();
     }
     else if( timeout->ready() )
     {
@@ -58,10 +63,10 @@ void CustomerGenerator(Sim::Environment* env, int number, double interval, Sim::
 
         env->addProcess([=]()
         {
-            Customer(env, name.c_str(), counters, 12.0);
+            Customer(env, name.c_str(), counters, 10.0);
         } );
 
-        double t = Random::expovariate(1.0 / interval);
+        double t = 1.0;
         env->wait( env->timeout(t) );
     }
 }

@@ -34,7 +34,7 @@ void Environment::addProcess(const Environment::Callable& function)
 
 void destroyTimeoutEvent(Event* ev)
 {
-    delete ev;
+   // delete ev;
 }
 
 EventPtr Environment::timeout(double time)
