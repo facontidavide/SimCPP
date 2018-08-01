@@ -16,7 +16,7 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
 {
     // Customer arrives, is served and leaves.
     double arrive_time = env->now();
-    printf("%7.4f %s: Here I am\n", arrive_time, name );
+    printf("%7.4f %s: Here I am\n", arrive_time, name ); fflush(stdout);
 
     auto counter_available = counters->request();
     double patience = Random::uniform(MIN_PATIENCE, MAX_PATIENCE);
@@ -24,7 +24,7 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
 
     if( !counter_available->ready() )
     {
-        printf("%7.4f %s: --- must wait :( -----\n", arrive_time, name );
+        printf("%7.4f %s: --- must wait :( -----\n", arrive_time, name ); fflush(stdout);
     }
 
     // Wait until any of these two events takes place
@@ -35,14 +35,14 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
     if( counter_available->ready() && !timeout->ready() )
     {
         // We got to the counter
-        printf("%7.4f %s: Waited %6.3f\n", env->now(), name, wait_time);
+        printf("%7.4f %s: Waited %6.3f\n", env->now(), name, wait_time); fflush(stdout);
 
         double time_at_counter =  time_in_bank;
         env->wait( env->timeout(time_at_counter) );
 
         printf("%7.4f %s: Finished. Total time in bank %7.4f\n",
                env->now(), name,
-               env->now() - arrive_time);
+               env->now() - arrive_time); fflush(stdout);
 
         // This will release explicitly the resource.
         // Then the object counter_available goes out of scope, this is called automatically
@@ -50,7 +50,7 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
     }
     else if( timeout->ready() )
     {
-        printf("%7.4f %s: RENEGED after %6.3f\n", env->now(), name, wait_time);
+        printf("%7.4f %s: RENEGED after %6.3f\n", env->now(), name, wait_time); fflush(stdout);
     }
 }
 
@@ -63,7 +63,7 @@ void CustomerGenerator(Sim::Environment* env, int number, double interval, Sim::
 
         env->addProcess([=]()
         {
-            Customer(env, name.c_str(), counters, 10.0);
+            Customer(env, name.c_str(), counters, 2.2);
         } );
 
         double t = 1.0;

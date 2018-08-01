@@ -16,7 +16,7 @@ add_library(simpp
     sim_environment.cpp
     random.h
     )
-target_link_libraries(simpp pthread colib_static)
+target_link_libraries(simpp colib_static pthread)
 
 add_executable(bank_simple bank_simple.cpp )
 target_link_libraries(bank_simple simpp)

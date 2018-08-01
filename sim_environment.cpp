@@ -1,4 +1,5 @@
 #include "sim_environment.h"
+#include <algorithm>
 
 namespace Sim{
 
@@ -126,7 +127,7 @@ ResourceEvent* Resource::newEvent()
 void destroyResourceEvent(Event* ev)
 {
     dynamic_cast<ResourceEvent*>(ev)->release();
-    ev->Event::~Event();
+    delete ev;
 }
 
 EventPtr Resource::request()
@@ -147,22 +148,37 @@ EventPtr Resource::request()
 
 void Resource::release(ResourceEvent *event)
 {
-    _used_slots_count--;
-    if( !_pending_events.empty() )
+    if( event->cancelled() )
     {
-        auto ev = _pending_events.front();
-        _pending_events.pop_front();
-
-        if( !ev->cancelled() )
+        auto it = std::find( _pending_events.begin(), _pending_events.end(), event );
+        if( it != _pending_events.end())
         {
-            ev->_ready = true;
+            _pending_events.erase(it);
+        }
+    }
+    else if( event->ready() ) // the event has been used. A new slot is free
+    {
+       _used_slots_count--;
 
-            if( ev->coro()->cEnd == 0){
-                co_resume( ev->coro() );
+        while( !_pending_events.empty() && _used_slots_count < _max_slots )
+        {
+            auto ev = _pending_events.front();
+            _pending_events.pop_front();
+
+            if( !ev->cancelled() )
+            {
+                ev->_ready = true;
+                _used_slots_count++;
+
+                if( ev->coro()->cEnd == 0){
+                    co_resume( ev->coro() );
+                }
             }
         }
     }
-   // _memory_pool.push_back(event);
+    else{
+        throw std::logic_error("Unexpected ResourceEvent state");
+    }
 }
 
 void ResourceEvent::release()
