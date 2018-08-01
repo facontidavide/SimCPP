@@ -6,6 +6,7 @@
 #include <queue>
 #include <limits>
 #include <list>
+#include <memory>
 #include "coroutine.h"
 
 namespace Sim{
@@ -30,11 +31,14 @@ public:
 
     bool ready() const { return _ready; }
 
-    void setReady() { _ready = true; }
 
     virtual EventType type() const = 0;
 
 private:
+
+    friend class Resource;
+    friend class Environment;
+
     stCoRoutine_t* _coro;
     bool _ready;
 };
@@ -55,11 +59,11 @@ private:
 
 class Resource;
 
-class ResourceAvailableEvent: public Event
+class ResourceEvent: public Event
 {
 public:
-    ResourceAvailableEvent(Resource* parent): _parent(parent) {}
-    ~ResourceAvailableEvent() { release(); }
+    ResourceEvent(Resource* parent): _parent(parent) {}
+    ~ResourceEvent() { release(); }
 
     void release();
 
@@ -67,6 +71,9 @@ public:
 private:
     Resource* _parent;
 };
+
+typedef std::unique_ptr<ResourceEvent, void(*)(ResourceEvent*)> ResourceEventPtr;
+
 
 
 class Environment
@@ -85,6 +92,13 @@ public:
     void run(double timeout = std::numeric_limits<double>::infinity() );
 
     void wait(Event *event);
+
+    template <typename Ev, typename T>
+    void wait(std::unique_ptr<Ev, T>& event)
+    {
+        static_assert( std::is_base_of<Event,Ev>::value, "Not an Event");
+        wait( event.get() );
+    }
 
     void wait_any(std::initializer_list<Event> events);
 
@@ -118,17 +132,23 @@ private:
 class Resource
 {
 public:
+
     Resource(Environment* env, int max_concurrent_request);
 
-    ResourceAvailableEvent* request();
-
-    void release(ResourceAvailableEvent* event);
+    ResourceEventPtr request();
 
 private:
+
+    friend class ResourceEvent;
+
+    void release(ResourceEvent* event);
+
     Environment* _env;
     unsigned _max_slots;
-    unsigned _used_slots;
-
+    unsigned _used_slots_count;
+    std::deque<ResourceEvent*> _pending_events;
+    std::list<ResourceEvent*> _memory_pool;
+    ResourceEvent* newEvent();
 };
 
 }

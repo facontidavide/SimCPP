@@ -58,11 +58,14 @@ void Environment::run(double timeout)
     {
         if( !_timeout_queue.empty() )
         {
-            TimeoutEvent* tm = _timeout_queue.top();
+            TimeoutEvent* ev = _timeout_queue.top();
             _timeout_queue.pop();
-            _now = tm->deadline();
-            co_resume( tm->coro() );
-            delete tm;
+            _now = ev->deadline();
+
+            ev->_ready = true;
+            if( ev->coro()->cEnd == 0){
+                co_resume( ev->coro() );
+            }
         }
 
         for(auto it = _process.begin(); it != _process.end(); /* no increment */)
@@ -97,32 +100,68 @@ void Environment::wait(Event* event)
 Resource::Resource(Environment *env, int max_concurrent_request):
     _env(env),
     _max_slots( max_concurrent_request ),
-    _used_slots(0)
+    _used_slots_count(0)
 {
 
 }
 
-ResourceAvailableEvent *Resource::request()
+ResourceEvent* Resource::newEvent()
 {
-    if( _used_slots < _max_slots )
+    if( _memory_pool.empty())
     {
-        _used_slots++;
-        auto event = new ResourceAvailableEvent(this);
-        event->setReady();
+        return new ResourceEvent(this);
+    }
+    else{
+        auto event = _memory_pool.back();
+        _memory_pool.pop_back();
+        event->_ready = false;
         return event;
     }
 }
 
-void Resource::release(ResourceAvailableEvent *event)
+void destroyResourceEvent(ResourceEvent* ev)
 {
-    _used_slots--;
+     ev->release();
 }
 
-void ResourceAvailableEvent::release()
+ResourceEventPtr Resource::request()
+{
+    ResourceEvent* event = newEvent();
+
+    if( _used_slots_count < _max_slots )
+    {
+        _used_slots_count++;
+        event->_ready = true;
+    }
+    else{
+        event = newEvent();
+       _pending_events.push_back( event );
+    }
+    return ResourceEventPtr( event, destroyResourceEvent );
+}
+
+void Resource::release(ResourceEvent *event)
+{
+    _used_slots_count--;
+    if( !_pending_events.empty() )
+    {
+        auto ev = _pending_events.front();
+        _pending_events.pop_front();
+        ev->_ready = true;
+
+        if( ev->coro()->cEnd == 0){
+            co_resume( ev->coro() );
+        }
+    }
+    _memory_pool.push_back(event);
+}
+
+void ResourceEvent::release()
 {
     if (_parent)
     {
         _parent->release(this);
+        _parent = nullptr;
     }
 }
 
