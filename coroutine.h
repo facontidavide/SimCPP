@@ -4,6 +4,7 @@
 #include <functional>
 #include <unordered_map>
 #include "libco/co_routine.h"
+#include "libco/co_routine_inner.h"
 
 // simple wrapper functions
 
@@ -13,7 +14,14 @@ struct routine_t
 {
     stCoRoutine_t* co;
     std::function<void()> callable;
-    bool finished;
+    bool started() const
+    {
+        return ( co && co->cStart);
+    }
+    bool finished() const
+    {
+        return ( co && co->cEnd);
+    }
 };
 
 namespace details{
@@ -22,7 +30,6 @@ namespace details{
     {
         routine_t* coro = static_cast<routine_t*>( arg );
         coro->callable();
-        coro->finished = true;
         return nullptr;
     }
 }
@@ -30,18 +37,17 @@ namespace details{
 inline void create(routine_t* coro, std::function<void()> callable )
 {
     coro->callable = std::move(callable);
-    coro->finished = false;
     co_create( &coro->co, nullptr, details::co_function_wrapper, coro );
 }
 
 inline bool resume(const routine_t& coro)
 {
-    if( coro.finished )
+    if( coro.finished() )
     {
         return true;
     }
     co_resume( coro.co );
-    return coro.finished;
+    return coro.finished();
 }
 
 inline void yield()
