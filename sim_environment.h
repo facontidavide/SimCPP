@@ -5,6 +5,7 @@
 #include <vector>
 #include <queue>
 #include <limits>
+#include <list>
 #include "coroutine.h"
 
 namespace Sim{
@@ -17,8 +18,9 @@ enum class EventType{
 class Event
 {
 public:
-    Event(){
-     _coro = co_self();
+    Event(): _ready(false)
+    {
+        _coro = co_self();
     }
     virtual ~Event() = default;
 
@@ -26,12 +28,15 @@ public:
         return _coro;
     }
 
-    bool is_ready() const { return 0; }
+    bool ready() const { return _ready; }
+
+    void setReady() { _ready = true; }
 
     virtual EventType type() const = 0;
 
 private:
     stCoRoutine_t* _coro;
+    bool _ready;
 };
 
 class TimeoutEvent: public Event
@@ -48,11 +53,19 @@ private:
     double _deadline;
 };
 
+class Resource;
+
 class ResourceAvailableEvent: public Event
 {
 public:
-    virtual EventType type() const { return EventType::RESOURCE_READY; }
+    ResourceAvailableEvent(Resource* parent): _parent(parent) {}
+    ~ResourceAvailableEvent() { release(); }
 
+    void release();
+
+    virtual EventType type() const { return EventType::RESOURCE_READY; }
+private:
+    Resource* _parent;
 };
 
 
@@ -84,16 +97,18 @@ private:
         coro::routine_t coro;
     };
 
-    std::vector<Process> _process;
+    std::list<Process> _process;
 
     ulong _last_UID;
 
+    bool _running;
+
     struct CompareTimeout
     {
-      bool operator() (const TimeoutEvent* a,
-                       const TimeoutEvent* b)
+        bool operator() (const TimeoutEvent* a,
+                         const TimeoutEvent* b)
         {
-          return a->deadline() > b->deadline();
+            return a->deadline() > b->deadline();
         }
     };
 
@@ -105,7 +120,14 @@ class Resource
 public:
     Resource(Environment* env, int max_concurrent_request);
 
-    ResourceAvailableEvent request();
+    ResourceAvailableEvent* request();
+
+    void release(ResourceAvailableEvent* event);
+
+private:
+    Environment* _env;
+    unsigned _max_slots;
+    unsigned _used_slots;
 
 };
 

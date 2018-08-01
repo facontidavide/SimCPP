@@ -12,8 +12,10 @@ namespace coro{
 
 struct routine_t
 {
+    routine_t(): co(nullptr) {}
+
     stCoRoutine_t* co;
-    std::function<void()> callable;
+
     bool started() const
     {
         return ( co && co->cStart);
@@ -28,16 +30,17 @@ namespace details{
 
     inline void* co_function_wrapper(void* arg)
     {
-        routine_t* coro = static_cast<routine_t*>( arg );
-        coro->callable();
+        std::function<void()> callable = *static_cast<std::function<void()>*>( arg );
+        co_yield_ct();
+        callable();
         return nullptr;
     }
 }
 
 inline void create(routine_t* coro, std::function<void()> callable )
 {
-    coro->callable = std::move(callable);
-    co_create( &coro->co, nullptr, details::co_function_wrapper, coro );
+    co_create( &coro->co, nullptr, details::co_function_wrapper, &callable );
+    co_resume( coro->co );
 }
 
 inline bool resume(const routine_t& coro)
