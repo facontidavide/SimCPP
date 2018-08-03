@@ -1,25 +1,21 @@
-#include "bank_renege.h"
 #include <stdio.h>
 #include <iostream>
 #include <string>
-#include "random.h"
-#include "sim_environment.h"
-
-const int RANDOM_SEED = 42;
-const int NEW_CUSTOMERS = 10; // Total number of customers
-const int INTERVAL_CUSTOMERS = 5.0; // Generate new customers roughly every x seconds
-const int MIN_PATIENCE = 1; // Min. customer patience
-const int MAX_PATIENCE = 3; // Max. customer patience
+#include "SimCPP/random.h"
+#include "SimCPP/sim_environment.h"
 
 
 void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, double time_in_bank)
 {
+    const int MIN_PATIENCE = 1; // Min. customer patience
+    const int MAX_PATIENCE = 3; // Max. customer patience
+
     // Customer arrives, is served and leaves.
     double arrive_time = env->now();
     printf("%7.4f %s: Here I am\n", arrive_time, name ); fflush(stdout);
 
     auto counter_available = counters->request();
-    double patience = Random::uniform(MIN_PATIENCE, MAX_PATIENCE);
+    double patience = Sim::Random::uniform(MIN_PATIENCE, MAX_PATIENCE);
     auto timeout = env->timeout(patience);
 
     if( !counter_available->ready() )
@@ -55,9 +51,12 @@ void Customer(Sim::Environment* env, const char* name, Sim::Resource* counters, 
 }
 
 
-void CustomerGenerator(Sim::Environment* env, int number, double interval, Sim::Resource* counters )
+void CustomerGenerator(Sim::Environment* env, Sim::Resource* counters )
 {
-    for (int i=0; i< number; i++)
+    const int INTERVAL_CUSTOMERS = 5.0; // Generate new customers roughly every x seconds
+    const int NEW_CUSTOMERS = 10; // Total number of customers
+
+    for (int i=0; i< NEW_CUSTOMERS; i++)
     {
         std::string name = std::string("Customer-") + std::to_string(i);
 
@@ -76,15 +75,15 @@ int main()
 {
     std::cout << "Bank renege!" << std::endl;
 
-    Random::seed(RANDOM_SEED);
+    const int RANDOM_SEED = 42;
+    Sim::Random::seed(RANDOM_SEED);
     Sim::Environment env;
 
-    // Start processes and run
     Sim::Resource counters( &env, 2);
 
     env.addProcess( [&]()
     {
-        CustomerGenerator(&env, NEW_CUSTOMERS, INTERVAL_CUSTOMERS, &counters);
+        CustomerGenerator(&env, &counters);
     });
 
     env.run();

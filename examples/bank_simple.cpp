@@ -1,9 +1,8 @@
-#include "bank_renege.h"
 #include <stdio.h>
 #include <iostream>
 #include <string>
-#include "random.h"
-#include "sim_environment.h"
+#include "SimCPP/random.h"
+#include "SimCPP/sim_environment.h"
 
 const int RANDOM_SEED = 42;
 const int NEW_CUSTOMERS = 5; // Total number of customers
@@ -47,13 +46,12 @@ void CustomerGenerator(Sim::Environment* env, int number, double interval, Sim::
     for (int i=0; i< number; i++)
     {
         std::string name = std::string("Customer-") + std::to_string(i);
-
         env->addProcess([=]()
         {
             Customer(env, name.c_str(), counters, 12.0);
         } );
 
-        double t = Random::expovariate(1.0 / interval);
+        double t = Sim::Random::expovariate(1.0 / interval);
         env->wait(  env->timeout(t) );
     }
 }
@@ -63,7 +61,7 @@ int main()
 {
     std::cout << "Bank renege!" << std::endl;
 
-    Random::seed(RANDOM_SEED);
+    Sim::Random::seed(RANDOM_SEED);
     Sim::Environment env;
 
     // Start processes and run

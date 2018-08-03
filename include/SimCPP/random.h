@@ -3,6 +3,8 @@
 
 #include <random>
 
+namespace Sim{
+
 class Random
 {
 private:
@@ -38,5 +40,7 @@ public:
     }
 
 };
+
+}
 
 #endif // RANDOM_H

@@ -1,5 +1,5 @@
-#ifndef SIM_ENVIRONMENT_H
-#define SIM_ENVIRONMENT_H
+#ifndef SIM_EVENTS_H
+#define SIM_EVENTS_H
 
 #include <functional>
 #include <vector>
@@ -20,24 +20,16 @@ enum class EventType{
 class Event
 {
 public:
-    Event(): _ready(false), _cancelled(false)
-    {
-        _coro = co_self();
-    }
-    virtual ~Event()
-    {
-        _cancelled = true;
-    }
+    Event();
+    virtual ~Event() = default;
 
-    stCoRoutine_t* coro() const{
-        return _coro;
-    }
+    stCoRoutine_t* coro() const;
 
-    virtual bool ready() const { return _ready; }
+    virtual bool ready() const;
 
-    bool cancelled() const { return _cancelled; }
+    bool cancelled() const;
 
-    void cancel() { _cancelled = true; }
+    void cancel();
 
     virtual EventType type() const = 0;
 
@@ -57,7 +49,6 @@ public:
     TimeoutEvent(double timeout): _deadline(timeout){}
 
     EventType type() const override { return EventType::TIMEOUT; }
-
     double deadline() const { return _deadline; }
 
 private:
@@ -99,16 +90,7 @@ class OrEvent: public CompositeEvent
 public:
     OrEvent( Event& a, Event& b): CompositeEvent(a,b) {}
 
-    bool ready() const override
-    {
-        bool done = _a.ready() | _b.ready();
-        if( done )
-        {
-            if( !_a.ready() ) _a.cancel();
-            if( !_b.ready() ) _b.cancel();
-        }
-        return done;
-    }
+    bool ready() const override;
 };
 
 class AndEvent: public CompositeEvent
@@ -116,10 +98,7 @@ class AndEvent: public CompositeEvent
 public:
     AndEvent( Event& a, Event& b): CompositeEvent(a,b) {}
 
-    bool ready() const override
-    {
-        return _a.ready() && _b.ready();
-    }
+    bool ready() const override;
 };
 
 inline OrEvent operator |( Event& a, Event& b ) { return OrEvent(a,b); }
@@ -132,80 +111,6 @@ inline AndEvent operator &( EventPtr& a, EventPtr& b ) { return AndEvent( *a.get
 inline AndEvent operator &( EventPtr& a, Event& b ) { return AndEvent(*a.get(),b); }
 inline AndEvent operator &( Event& a, EventPtr& b ) { return AndEvent(a, *b.get()); }
 
-
-//-----------------------------------------------------------
-class Environment
-{
-public:
-    Environment();
-
-    double now() const;
-
-    using Callable = std::function<void()>;
-
-    void addProcess(const Callable &function);
-
-    EventPtr timeout(double time);
-
-    void run(double timeout = std::numeric_limits<double>::infinity() );
-
-    void wait(const Event& event);
-
-    void wait(const EventPtr& event)
-    {
-        wait( *(event.get()) );
-    }
-
-   // void wait_any(std::initializer_list<Event*> events);
-
-private:
-    double _now;
-
-    struct Process
-    {
-        ulong ID;
-        coro::routine_t coro;
-    };
-
-    std::list<Process> _process;
-
-    ulong _last_UID;
-
-    bool _running;
-
-    struct CompareTimeout
-    {
-        bool operator() (const TimeoutEvent* a,
-                         const TimeoutEvent* b)
-        {
-            return a->deadline() > b->deadline();
-        }
-    };
-
-    std::priority_queue<TimeoutEvent*, std::vector<TimeoutEvent*>, CompareTimeout> _timeout_queue;
-};
-
-class Resource
-{
-public:
-
-    Resource(Environment* env, int max_concurrent_request);
-
-    EventPtr request();
-
-private:
-
-    friend class ResourceEvent;
-
-    void release(ResourceEvent* event);
-
-    Environment* _env;
-    unsigned _max_slots;
-    unsigned _used_slots_count;
-    std::deque<ResourceEvent*> _pending_events;
-    std::list<ResourceEvent*> _memory_pool;
-    ResourceEvent* newEvent();
-};
 
 }
 
